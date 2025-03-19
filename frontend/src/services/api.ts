@@ -26,26 +26,46 @@ export interface Order {
   created_at: string;
 }
 
-export const getSales = async (productId?: number) => {
-  const { data } = await api.get<Sale[]>(`/sales${productId ? `?product_id=${productId}` : ''}`);
-  return data;
+export const getSales = async (productId?: number | string) => {
+  try {
+    const response = await api.get<Sale[]>(`/sales${productId ? `?product_id=${productId}` : ''}`);
+    return response.data;
+  } catch (error) {
+    throw new Error('Failed to fetch sales data');
+  }
 };
 
 export const getProducts = async () => {
-  const { data } = await api.get<Product[]>("/products");
-  return data;
+  try {
+    const { data } = await api.get<Product[]>("/products");
+    return data;
+  } catch (error) {
+    throw new Error('Failed to fetch products');
+  }
 };
 
 export const getOrders = async () => {
-  const { data } = await api.get<Order[]>("/orders");
-  return data;
+  try {
+    const { data } = await api.get<Order[]>("/orders");
+    return data;
+  } catch (error) {
+    throw new Error('Failed to fetch orders');
+  }
 };
 
 export const createOrder = async (order: Omit<Order, "id" | "created_at">) => {
-  const { data } = await api.post("/orders", order);
-  return data;
+  try {
+    const { data } = await api.post("/orders", order);
+    return data;
+  } catch (error) {
+    throw new Error('Failed to create order');
+  }
 };
 
 export const deleteOrder = async (id: number) => {
-  await api.delete(`/orders/${id}`);
+  try {
+    await api.delete(`/orders/${id}`);
+  } catch (error) {
+    throw new Error('Failed to delete order');
+  }
 }; 

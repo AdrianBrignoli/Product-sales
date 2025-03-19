@@ -3,16 +3,20 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
+
+	"github.com/go-redis/redis/v8"
 )
 
 type Handler struct {
-	db *sql.DB
+	db  *sql.DB
+	rdb *redis.Client
 }
 
-func NewHandler(db *sql.DB) *Handler {
-	return &Handler{db: db}
+func NewHandler(db *sql.DB, redis *redis.Client) *Handler {
+	return &Handler{db: db, rdb: redis}
 }
 
 func (h *Handler) HandleSales(w http.ResponseWriter, r *http.Request) {
@@ -30,8 +34,15 @@ func (h *Handler) HandleOrders(w http.ResponseWriter, r *http.Request) {
 		h.getOrders(w, r)
 	case http.MethodPost:
 		h.CreateOrder(w, r)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *Handler) HandleOrder(w http.ResponseWriter, r *http.Request, id string) {
+	switch r.Method {
 	case http.MethodDelete:
-		h.DeleteOrder(w, r)
+		h.DeleteOrder(w, r, id)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -47,15 +58,26 @@ func (h *Handler) HandleProducts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getSales(w http.ResponseWriter, r *http.Request) {
-	productID := r.URL.Query().Get("product_id")
-	query := `
-        SELECT s.id, s.product_id, s.quantity, s.amount, s.date 
-        FROM sales s
-        WHERE ($1 = '' OR s.product_id = $1::integer)
-        ORDER BY s.date DESC`
+	log.Printf("Getting sales data, productID: %v", r.URL.Query().Get("product_id"))
 
-	rows, err := h.db.Query(query, productID)
+	if err := h.db.Ping(); err != nil {
+		log.Printf("Database connection error: %v", err)
+		http.Error(w, "Database connection error", http.StatusInternalServerError)
+		return
+	}
+
+	var rows *sql.Rows
+	var err error
+
+	productID := r.URL.Query().Get("product_id")
+	if productID == "all" {
+		rows, err = h.db.Query("SELECT id, product_id, quantity, amount, date FROM sales ORDER BY date DESC")
+	} else {
+		rows, err = h.db.Query("SELECT id, product_id, quantity, amount, date FROM sales WHERE product_id = $1 ORDER BY date DESC", productID)
+	}
+
 	if err != nil {
+		log.Printf("Query error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -79,8 +101,15 @@ func (h *Handler) getSales(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	response, err := json.Marshal(sales)
+	if err != nil {
+		log.Printf("Error marshaling sales: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sales)
+	w.Write(response)
 }
 
 func (h *Handler) getOrders(w http.ResponseWriter, r *http.Request) {
@@ -145,8 +174,8 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) DeleteOrder(w http.ResponseWriter, r *http.Request) {
-	orderID := r.URL.Query().Get("id")
+func (h *Handler) DeleteOrder(w http.ResponseWriter, r *http.Request, orderID string) {
+	log.Printf("Deleting order with ID: %v", orderID)
 	if orderID == "" {
 		http.Error(w, "Order ID is required", http.StatusBadRequest)
 		return
@@ -165,11 +194,22 @@ func (h *Handler) DeleteOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getProducts(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Attempting to ping database...")
+	if err := h.db.Ping(); err != nil {
+		log.Printf("Database connection error: %v", err)
+		http.Error(w, "Database connection error", http.StatusInternalServerError)
+		return
+	}
+	log.Printf("Database ping successful")
+
+	log.Printf("Querying products...")
 	rows, err := h.db.Query("SELECT id, name, price FROM products")
 	if err != nil {
+		log.Printf("Query error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	log.Printf("Query successful")
 	defer rows.Close()
 
 	var products []map[string]interface{}
@@ -188,6 +228,12 @@ func (h *Handler) getProducts(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	response, err := json.Marshal(products)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(products)
+	w.Write(response)
 }

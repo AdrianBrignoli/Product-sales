@@ -4,11 +4,11 @@ import {
   Box,
   Drawer,
   List,
-  ListItem,
   ListItemIcon,
   ListItemText,
   Toolbar,
   Typography,
+  ListItemButton,
 } from "@mui/material";
 import {
   ShowChart as ShowChartIcon,
@@ -44,21 +44,21 @@ export default function Layout() {
           },
         }}
       >
-        <Toolbar /> {/* This creates space for the AppBar */}
+        <Toolbar />
         <Box sx={{ overflow: "auto" }}>
           <List>
-            <ListItem button component={Link} to="/">
+            <ListItemButton component={Link} to="/">
               <ListItemIcon>
                 <ShowChartIcon />
               </ListItemIcon>
               <ListItemText primary="Sales Overview" />
-            </ListItem>
-            <ListItem button component={Link} to="/orders">
+            </ListItemButton>
+            <ListItemButton component={Link} to="/orders">
               <ListItemIcon>
                 <ShoppingCartIcon />
               </ListItemIcon>
               <ListItemText primary="Orders" />
-            </ListItem>
+            </ListItemButton>
           </List>
         </Box>
       </Drawer>
@@ -72,7 +72,7 @@ export default function Layout() {
           width: `calc(100% - ${DRAWER_WIDTH}px)`,
         }}
       >
-        <Toolbar /> {/* This creates space for the AppBar */}
+        <Toolbar />
         <Outlet />
       </Box>
     </Box>

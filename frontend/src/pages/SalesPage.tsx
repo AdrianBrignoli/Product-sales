@@ -1,90 +1,66 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from "recharts";
-import {
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
-  Paper,
-  Typography,
-} from "@mui/material";
 import { getSales, getProducts } from "../services/api";
+import { useSalesWebSocket } from "../hooks/useSalesWebSocket";
+import { SalesView } from "../views/SalesView";
+import { Snackbar, Alert } from "@mui/material";
 
 export default function SalesPage() {
   const [selectedProduct, setSelectedProduct] = useState<number | "all">("all");
+  const [timeFrame, setTimeFrame] = useState<"daily" | "monthly" | "yearly">(
+    "monthly"
+  );
+
+  const handleProductSelect = useCallback((productId: number | "all") => {
+    setSelectedProduct(productId);
+  }, []);
+
+  const handleTimeFrameChange = useCallback(
+    (newTimeFrame: "daily" | "monthly" | "yearly") => {
+      setTimeFrame(newTimeFrame);
+    },
+    []
+  );
 
   const { data: products } = useQuery({
     queryKey: ["products"],
     queryFn: getProducts,
   });
 
-  const { data: sales } = useQuery({
-    queryKey: ["sales", selectedProduct],
-    queryFn: () =>
-      getSales(selectedProduct === "all" ? undefined : selectedProduct),
+  const {
+    data: sales,
+    isError,
+    isLoading,
+  } = useQuery({
+    queryKey: ["sales", selectedProduct, timeFrame],
+    queryFn: () => getSales(selectedProduct),
+    refetchInterval: 30000,
   });
 
-  // Process sales data for the chart
-  const chartData = sales?.reduce((acc: any[], sale) => {
-    const date = new Date(sale.date).toLocaleDateString();
-    const existing = acc.find((item) => item.date === date);
-    if (existing) {
-      existing.amount += sale.amount;
-    } else {
-      acc.push({ date, amount: sale.amount });
-    }
-    return acc;
-  }, []);
+  const { showUpdate, handleCloseNotification } = useSalesWebSocket();
 
   return (
-    <div className="p-6">
-      <Typography variant="h4" className="mb-6">
-        Sales Overview
-      </Typography>
-      <Paper className="p-4 mb-6">
-        <FormControl fullWidth>
-          <InputLabel>Filter by Product</InputLabel>
-          <Select
-            value={selectedProduct}
-            label="Filter by Product"
-            onChange={(e) =>
-              setSelectedProduct(e.target.value as number | "all")
-            }
-          >
-            <MenuItem value="all">All Products</MenuItem>
-            {products?.map((product) => (
-              <MenuItem key={product.id} value={product.id}>
-                {product.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Paper>
-
-      <Paper className="p-4">
-        <LineChart width={800} height={400} data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="date" />
-          <YAxis />
-          <Tooltip />
-          <Legend />
-          <Line
-            type="monotone"
-            dataKey="amount"
-            stroke="#8884d8"
-            name="Sales Amount"
-          />
-        </LineChart>
-      </Paper>
-    </div>
+    <>
+      <SalesView
+        sales={sales}
+        products={products}
+        isLoading={isLoading}
+        isError={isError}
+        selectedProduct={selectedProduct}
+        onProductSelect={handleProductSelect}
+        timeFrame={timeFrame}
+        onTimeFrameChange={handleTimeFrameChange}
+      />
+      <Snackbar
+        open={showUpdate}
+        autoHideDuration={3000}
+        onClose={handleCloseNotification}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert severity="info" onClose={handleCloseNotification}>
+          Sales data updated
+        </Alert>
+      </Snackbar>
+    </>
   );
 }

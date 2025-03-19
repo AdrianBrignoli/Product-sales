@@ -1,0 +1,40 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend:/app  # For hot reload
+    environment:
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - DB_HOST=host.docker.internal  # Special DNS name for host machine
+      - DB_PORT=${DB_PORT}
+      - REDIS_ADDR=redis:6379  # Use service name for internal communication
+    depends_on:
+      - redis
+
+  # Future microservices could be added like:
+  order-service:
+    build: ./order-service
+    depends_on:
+      - redis
+
+  notification-service:
+    build: ./notification-service
+    depends_on:
+      - redis
+
+volumes:
+  redis_data: 
