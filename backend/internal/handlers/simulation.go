@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// simulate sales, send notifications to sales_channel, trigger websocket
+// Backup polling implemented in frontend as well.
 func (h *Handler) StartSalesSimulation() {
 	go func() {
 		for {

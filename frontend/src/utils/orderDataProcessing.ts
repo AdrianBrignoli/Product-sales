@@ -1,4 +1,4 @@
-import { Order, Product } from "../services/api";
+import { Order, Product } from '../services/api';
 
 export const calculateStockSummary = (
   orders: Order[] | undefined,
@@ -11,9 +11,9 @@ export const calculateStockSummary = (
       acc[order.product_id] = { currentStock: 0, incomingStock: 0 };
     }
 
-    if (order.status === "completed") {
+    if (order.status === 'completed') {
       acc[order.product_id].currentStock += order.quantity;
-    } else if (order.status === "processing") {
+    } else if (order.status === 'processing' || order.status === 'pending') {
       acc[order.product_id].incomingStock += order.quantity;
     }
 
@@ -25,4 +25,4 @@ export const calculateStockSummary = (
     currentStock: productTotals[product.id]?.currentStock || 0,
     incomingStock: productTotals[product.id]?.incomingStock || 0,
   }));
-}; 
+};

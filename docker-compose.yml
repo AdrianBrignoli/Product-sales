@@ -1,11 +1,34 @@
 version: '3.8'
 services:
+  postgres:
+    image: postgres:17
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
+      - POSTGRES_DB=${DB_NAME:-optimo}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql
+      - ./database/seeds.sql:/docker-entrypoint-initdb.d/2-seeds.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   redis:
     image: redis:latest
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   backend:
     build: 
@@ -16,25 +39,18 @@ services:
     volumes:
       - ./backend:/app  # For hot reload
     environment:
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME}
-      - DB_HOST=host.docker.internal  # Special DNS name for host machine
-      - DB_PORT=${DB_PORT}
-      - REDIS_ADDR=redis:6379  # Use service name for internal communication
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_NAME=${DB_NAME:-optimo}
+      - DB_HOST=postgres  
+      - DB_PORT=5432
+      - REDIS_ADDR=redis:6379
     depends_on:
-      - redis
-
-  # Future microservices could be added like:
-  order-service:
-    build: ./order-service
-    depends_on:
-      - redis
-
-  notification-service:
-    build: ./notification-service
-    depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
+  postgres_data:
   redis_data: 

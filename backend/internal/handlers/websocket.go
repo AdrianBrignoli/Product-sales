@@ -30,7 +30,7 @@ func (h *Handler) HandleSalesWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("WebSocket connection upgraded successfully")
 
-	// Create PostgreSQL listener
+	// Bake connection string
 	connStr := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		os.Getenv("DB_HOST"),
@@ -39,6 +39,8 @@ func (h *Handler) HandleSalesWebSocket(w http.ResponseWriter, r *http.Request) {
 		os.Getenv("DB_PASSWORD"),
 		os.Getenv("DB_NAME"),
 	)
+
+	// Create PostgreSQL listener
 	listener := pq.NewListener(connStr,
 		10*time.Second, time.Minute, nil)
 	defer listener.Close()
@@ -46,10 +48,11 @@ func (h *Handler) HandleSalesWebSocket(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Listener connection string: %s", connStr)
 
 	// Give the listener time to establish connection
+	// Had some issues here earlier, QF, this is not what we would want in production
 	time.Sleep(time.Second)
 	log.Printf("Waiting for listener to connect...")
 
-	// Initialize notification channel first
+	// Initialize chan for receiving notifications from the database
 	listener.Notify = make(chan *pq.Notification, 1)
 
 	// Try to ping the connection
@@ -58,6 +61,7 @@ func (h *Handler) HandleSalesWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Listen can actually block indefinitely, Go-routine would be better
 	err = listener.Listen("sales_channel")
 	if err != nil {
 		log.Printf("Listen failed: %v", err)
@@ -70,7 +74,7 @@ func (h *Handler) HandleSalesWebSocket(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		// Recivies notifications from PostgreSQL
-		case n := <-listener.Notify:
+		case n := <-listener.Notify: // woop woop
 			log.Printf("Received PostgreSQL notification on channel: %s, payload: %s",
 				n.Channel, n.Extra)
 			if err := conn.WriteMessage(websocket.TextMessage, []byte(n.Extra)); err != nil {

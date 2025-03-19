@@ -5,20 +5,21 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"time"
 
+	"github.com/AdrianBrignoli/madden-solution/internal/models"
 	"github.com/go-redis/redis/v8"
 )
 
 type Handler struct {
 	db  *sql.DB
-	rdb *redis.Client
+	rdb *redis.Client // Again, not used, but I'm keeping it here for "future use"
 }
 
 func NewHandler(db *sql.DB, redis *redis.Client) *Handler {
 	return &Handler{db: db, rdb: redis}
 }
 
+// Sales handler. Simple GET request.
 func (h *Handler) HandleSales(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -28,6 +29,7 @@ func (h *Handler) HandleSales(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Orders handler. CR.
 func (h *Handler) HandleOrders(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -39,6 +41,8 @@ func (h *Handler) HandleOrders(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// I choose to handle the DELETE request separately.
+// Might be unnecessary. But since the {id} is not part of req-body, this is where I landed.
 func (h *Handler) HandleOrder(w http.ResponseWriter, r *http.Request, id string) {
 	switch r.Method {
 	case http.MethodDelete:
@@ -48,6 +52,7 @@ func (h *Handler) HandleOrder(w http.ResponseWriter, r *http.Request, id string)
 	}
 }
 
+// Products handler. Simple GET request.
 func (h *Handler) HandleProducts(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -59,12 +64,6 @@ func (h *Handler) HandleProducts(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) getSales(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Getting sales data, productID: %v", r.URL.Query().Get("product_id"))
-
-	if err := h.db.Ping(); err != nil {
-		log.Printf("Database connection error: %v", err)
-		http.Error(w, "Database connection error", http.StatusInternalServerError)
-		return
-	}
 
 	var rows *sql.Rows
 	var err error
@@ -83,22 +82,14 @@ func (h *Handler) getSales(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	var sales []map[string]interface{}
+	var sales []models.Sale
 	for rows.Next() {
-		var id, productID, quantity int
-		var amount float64
-		var date time.Time
-		if err := rows.Scan(&id, &productID, &quantity, &amount, &date); err != nil {
+		var sale models.Sale
+		if err := rows.Scan(&sale.ID, &sale.ProductID, &sale.Quantity, &sale.Amount, &sale.Date); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		sales = append(sales, map[string]interface{}{
-			"id":         id,
-			"product_id": productID,
-			"quantity":   quantity,
-			"amount":     amount,
-			"date":       date,
-		})
+		sales = append(sales, sale)
 	}
 
 	response, err := json.Marshal(sales)
@@ -123,22 +114,14 @@ func (h *Handler) getOrders(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	var orders []map[string]interface{}
+	var orders []models.Order
 	for rows.Next() {
-		var id, productID, quantity int
-		var status string
-		var createdAt time.Time
-		if err := rows.Scan(&id, &productID, &quantity, &status, &createdAt); err != nil {
+		var order models.Order
+		if err := rows.Scan(&order.ID, &order.ProductID, &order.Quantity, &order.Status, &order.CreatedAt); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		orders = append(orders, map[string]interface{}{
-			"id":         id,
-			"product_id": productID,
-			"quantity":   quantity,
-			"status":     status,
-			"created_at": createdAt,
-		})
+		orders = append(orders, order)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -146,12 +129,7 @@ func (h *Handler) getOrders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
-	var order struct {
-		ProductID int    `json:"product_id"`
-		Quantity  int    `json:"quantity"`
-		Status    string `json:"status"`
-	}
-
+	var order models.Order
 	if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -194,38 +172,22 @@ func (h *Handler) DeleteOrder(w http.ResponseWriter, r *http.Request, orderID st
 }
 
 func (h *Handler) getProducts(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Attempting to ping database...")
-	if err := h.db.Ping(); err != nil {
-		log.Printf("Database connection error: %v", err)
-		http.Error(w, "Database connection error", http.StatusInternalServerError)
-		return
-	}
-	log.Printf("Database ping successful")
-
-	log.Printf("Querying products...")
 	rows, err := h.db.Query("SELECT id, name, price FROM products")
 	if err != nil {
 		log.Printf("Query error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	log.Printf("Query successful")
 	defer rows.Close()
 
-	var products []map[string]interface{}
+	var products []models.Product
 	for rows.Next() {
-		var id int
-		var name string
-		var price float64
-		if err := rows.Scan(&id, &name, &price); err != nil {
+		var product models.Product
+		if err := rows.Scan(&product.ID, &product.Name, &product.Price); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		products = append(products, map[string]interface{}{
-			"id":    id,
-			"name":  name,
-			"price": price,
-		})
+		products = append(products, product)
 	}
 
 	response, err := json.Marshal(products)

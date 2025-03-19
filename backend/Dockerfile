@@ -1,10 +1,10 @@
 # Development stage
-FROM golang:1.21
+FROM golang:1.24
 
 WORKDIR /app
 
 # Install air for hot reloading
-RUN go install github.com/cosmtrek/air@latest
+RUN go install github.com/air-verse/air@latest
 
 # Copy go mod files
 COPY go.mod go.sum ./

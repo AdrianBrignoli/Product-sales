@@ -30,6 +30,7 @@ type Config struct {
 	ServerAddr string
 }
 
+// We don't really need this when using Docker Compose, but I'm keeping it here for safety
 func loadConfig() (*Config, error) {
 	if err := godotenv.Load(); err != nil {
 		return nil, fmt.Errorf("error loading .env file: %v", err)
@@ -82,6 +83,7 @@ func main() {
 	})
 
 	// Test Redis connection
+	// I'm not really using Redis for anything, but I'm keeping it here for "future use"
 	ctx := context.Background()
 	if _, err := rdb.Ping(ctx).Result(); err != nil {
 		log.Printf("Warning: Redis connection failed: %v", err)
@@ -96,11 +98,12 @@ func main() {
 	h := handlers.NewHandler(db, rdb)
 
 	// Start sales simulation
+	// Simulates new sales every 30 seconds to display near real-time data handling
 	h.StartSalesSimulation()
 
 	// Middleware
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
+	r.Use(middleware.Logger)    // logs HTTP request details
+	r.Use(middleware.Recoverer) // recovers from panics => 500 internal server error => Application can keep on running
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:5173"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -111,7 +114,10 @@ func main() {
 	}))
 
 	// Setup routes
+	// Get sales and display, no further CRUD operations needed
 	r.Get("/api/sales", h.HandleSales)
+
+	// CRD for orders. Special treatment for DELETE. Apparently in line with best practise for REST
 	r.Route("/api/orders", func(r chi.Router) {
 		r.Get("/", h.HandleOrders)
 		r.Post("/", h.CreateOrder)
@@ -122,7 +128,9 @@ func main() {
 			})
 		})
 	})
+	// Products "belonging" to this user
 	r.Get("/api/products", h.HandleProducts)
+	// WS for regular sales sim
 	r.HandleFunc("/ws/sales", h.HandleSalesWebSocket)
 
 	// Create server
@@ -132,6 +140,7 @@ func main() {
 	}
 
 	// Run server in goroutine
+	// SIGINT/SIGTERM related, graceful exit
 	go func() {
 		log.Printf("Server starting on %s", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
