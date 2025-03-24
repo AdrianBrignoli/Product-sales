@@ -1,4 +1,4 @@
-# madden-solution
+
 
 ## Prerequisites
 
@@ -95,10 +95,3 @@ graph TD
   - Redis for optional caching
   - Sales simulation worker
 
-## Improvements
-- Make state persistent for daily, monthly, and yearly data. Navigating to daily stats takes some time because the data needs to be loaded into the graphs. This could be done once and cached, allowing instant loading when switching back to daily from monthly or yearly.
-- Set a threshold for how far back daily stats should be displayed to reduce the amount of data that needs to be loaded. Pre-fetch daily and yearly data in the background so it’s always ready when the user clicks the tab. Update current stock immediately when a new purchase is made.
-- Improve error handling. Implement structured error handling with custom error types and consistent error responses across all endpoints.
-- Better organization overall for backend logic. Handler.go is quite massive and it's handling waaay to many things. 
-- Implementing Redis
-- Not really using hot-reloading through air. Could probably remove with the current setup
